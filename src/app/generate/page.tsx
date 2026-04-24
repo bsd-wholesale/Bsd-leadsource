@@ -26,10 +26,10 @@ export default function GenerateLeadsPage() {
     return null
   }
 
-  // Cost estimation: 6 cycles for 10-15 leads at $4.70-6.20
-  // Average: ~$5.45 per validated lead
+  // Cost estimation: 6 cycles for 10-12 validated leads at $4.70-6.20
+  // Cost per validated lead: $0.39-$0.62 (average ~$0.50 per lead)
   const calculateEstimatedCost = (leads: number) => {
-    const avgCostPerLead = 5.45
+    const avgCostPerLead = 0.50
     const estimated = leads * avgCostPerLead
     return estimated.toFixed(2)
   }
@@ -129,13 +129,13 @@ export default function GenerateLeadsPage() {
                 <div className="border rounded-lg p-4 bg-gray-50">
                   <p className="text-sm text-gray-600 mb-2">Cost Estimator</p>
                   <p className="text-xs text-gray-500 mb-2">
-                    Based on last run: 6 cycles for 10-12 leads at $4.70-6.20
+                    Based on last run: 6 cycles for 10-12 validated leads at $4.70-6.20
                   </p>
                   <p className="text-2xl font-bold">
                     Estimated Cost: ${estimatedCost || "0.00"}
                   </p>
                   <p className="text-xs text-gray-500">
-                    (~$5.45 per validated lead)
+                    (~$0.50 per validated lead)
                   </p>
                 </div>
                 <Button 
