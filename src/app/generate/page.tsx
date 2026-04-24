@@ -45,7 +45,7 @@ export default function GenerateLeadsPage() {
       setAllValidatedLeads(leads)
     }
     fetchAllLeads()
-  }, [])
+  }, [job?.status]) // Re-fetch when job status changes
 
   // Cost estimation: 6 cycles for 10-12 validated leads at $4.70-6.20
   // Cost per validated lead: $0.39-$0.62 (average ~$0.50 per lead)
@@ -109,24 +109,32 @@ export default function GenerateLeadsPage() {
   }
 
   const simulateProgress = async (targetLeads: number) => {
-    let leadsGenerated = 0
-    const totalSteps = 10 // Simulate 10 steps
     let currentStep = 0
+    const totalSteps = 10 // Simulate 10 steps
 
     const interval = setInterval(async () => {
       currentStep++
-      leadsGenerated = Math.min(targetLeads, Math.floor((currentStep / totalSteps) * targetLeads))
       
-      await updateJobProgress(
-        leadsGenerated,
-        undefined,
-        `Running Instagram cycle... (${currentStep}/${totalSteps})`
-      )
+      // Re-fetch job state to get actual validated leads from Supabase
+      const currentJob = await getJobState()
+      if (currentJob) {
+        // Calculate progress based on actual validated leads found
+        const actualLeadsFound = currentJob.validatedLeads?.length || 0
+        const progressPercent = (actualLeadsFound / targetLeads) * 100
+        
+        await updateJobProgress(
+          actualLeadsFound,
+          undefined,
+          `Running Instagram cycle... (${currentStep}/${totalSteps})`
+        )
+      }
 
       if (currentStep >= totalSteps) {
         clearInterval(interval)
         await setJobStatus("completed")
-        await updateJobProgress(leadsGenerated, undefined, "Instagram cycle completed. Check Supabase for actual results.")
+        const finalJob = await getJobState()
+        const finalLeads = finalJob?.validatedLeads?.length || 0
+        await updateJobProgress(finalLeads, undefined, "Instagram cycle completed. Check Supabase for actual results.")
       }
     }, 3000) // 3 seconds per step (Instagram cycle takes time)
   }
@@ -186,6 +194,37 @@ export default function GenerateLeadsPage() {
             />
           </div>
           <p className="text-xs text-gray-500 mt-1">{job.logs[job.logs.length - 1]}</p>
+          
+          {/* Real-time lead details table during run */}
+          {job.validatedLeads && job.validatedLeads.length > 0 && (
+            <div className="mt-4">
+              <p className="text-sm font-semibold mb-2">Validated Leads Found ({job.validatedLeads.length})</p>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Username</TableHead>
+                    <TableHead>WhatsApp #</TableHead>
+                    <TableHead>Country</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {job.validatedLeads.map((lead, index) => (
+                    <TableRow key={index}>
+                      <TableCell>{lead.username}</TableCell>
+                      <TableCell>
+                        <a href={`tel:${lead.whatsapp}`} className="text-blue-600 hover:underline">
+                          {lead.whatsapp}
+                        </a>
+                      </TableCell>
+                      <TableCell>
+                        <Badge>{lead.country}</Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </div>
       )}
 
@@ -207,10 +246,10 @@ export default function GenerateLeadsPage() {
               </div>
             </div>
             
-            {/* Lead Breakdown Table - All Validated Leads from Supabase */}
-            {allValidatedLeads && allValidatedLeads.length > 0 && (
+            {/* Lead Breakdown Table - Current Run Leads */}
+            {job.validatedLeads && job.validatedLeads.length > 0 && (
               <div className="mb-4">
-                <p className="text-sm font-semibold mb-2">All Validated Leads ({allValidatedLeads.length} total)</p>
+                <p className="text-sm font-semibold mb-2">Validated Leads from This Run ({job.validatedLeads.length})</p>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -220,10 +259,14 @@ export default function GenerateLeadsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {allValidatedLeads.map((lead, index) => (
+                    {job.validatedLeads.map((lead, index) => (
                       <TableRow key={index}>
                         <TableCell>{lead.username}</TableCell>
-                        <TableCell>{lead.whatsapp}</TableCell>
+                        <TableCell>
+                          <a href={`tel:${lead.whatsapp}`} className="text-blue-600 hover:underline">
+                            {lead.whatsapp}
+                          </a>
+                        </TableCell>
                         <TableCell>
                           <Badge>{lead.country}</Badge>
                         </TableCell>
@@ -370,8 +413,8 @@ export default function GenerateLeadsPage() {
               </div>
               <div className="border rounded-lg p-4">
                 <p className="font-semibold mb-2">WhatsApp Validated Brazil/Paraguay</p>
-                <p className="text-2xl font-bold">35</p>
-                <Badge className="mt-2">Shown</Badge>
+                <p className="text-2xl font-bold">{allValidatedLeads.length}</p>
+                <p className="text-xs text-gray-500 mt-2">All leads are WhatsApp-validated from target countries</p>
               </div>
               <div className="border rounded-lg p-4">
                 <p className="font-semibold mb-2">WhatsApp Not Validated</p>

@@ -8,6 +8,7 @@ export interface ValidatedLead {
   username: string
   whatsapp: string
   country: string
+  createdAt?: string
 }
 
 export interface JobState {
@@ -210,7 +211,7 @@ export async function getAllValidatedLeads(): Promise<ValidatedLead[]> {
     // Fetch all leads from Supabase that are validated and from target countries
     const { data, error } = await supabase
       .from("leads")
-      .select("username, whatsapp_number, country")
+      .select("username, whatsapp_number, country, created_at")
       .in("country", ["Brazil", "Paraguay", "Nicaragua"])
       .not("whatsapp_number", "is", null)
       .order("created_at", { ascending: false })
@@ -225,6 +226,7 @@ export async function getAllValidatedLeads(): Promise<ValidatedLead[]> {
       username: lead.username,
       whatsapp: lead.whatsapp_number,
       country: lead.country,
+      createdAt: lead.created_at,
     }))
   } catch (error) {
     console.error("Error fetching validated leads:", error)
