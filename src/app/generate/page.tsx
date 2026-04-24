@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { isAuthenticated } from "@/lib/auth"
+import { getJobState, createJob, updateJobProgress, setJobStatus, clearJobState, type JobState } from "@/lib/jobManager"
 
 export default function GenerateLeadsPage() {
   const router = useRouter()
@@ -15,6 +16,7 @@ export default function GenerateLeadsPage() {
   const [maxAmount, setMaxAmount] = useState("")
   const [desiredLeads, setDesiredLeads] = useState("")
   const [estimatedCost, setEstimatedCost] = useState("")
+  const [job, setJob] = useState<JobState | null>(null)
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -22,9 +24,17 @@ export default function GenerateLeadsPage() {
     }
   }, [router])
 
-  if (!isAuthenticated()) {
-    return null
-  }
+  useEffect(() => {
+    // Poll for job state
+    const interval = setInterval(() => {
+      const currentJob = getJobState()
+      if (currentJob) {
+        setJob(currentJob)
+      }
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [])
 
   // Cost estimation: 6 cycles for 10-12 validated leads at $4.70-6.20
   // Cost per validated lead: $0.39-$0.62 (average ~$0.50 per lead)
@@ -44,8 +54,53 @@ export default function GenerateLeadsPage() {
       return
     }
 
-    alert(`Generating ${leadsNum} leads with max spend of $${maxAmountNum}...`)
+    // Close modal immediately
     setOpen(false)
+
+    // Create job
+    const newJob = createJob(leadsNum)
+    setJob(newJob)
+
+    // Start async job execution
+    // NOTE: Replace this simulation with actual backend API call
+    startLeadGenerationJob(leadsNum, maxAmountNum)
+  }
+
+  const startLeadGenerationJob = (targetLeads: number, maxBudget: number) => {
+    setJobStatus("running")
+    
+    let leadsGenerated = 0
+    const totalSteps = 10 // Simulate 10 scraping cycles
+    let currentStep = 0
+    let totalCost = 0
+
+    const interval = setInterval(() => {
+      currentStep++
+      const batchSize = Math.ceil(targetLeads / totalSteps)
+      leadsGenerated = Math.min(targetLeads, leadsGenerated + batchSize)
+      
+      const costForBatch = batchSize * 0.50
+      totalCost += costForBatch
+
+      // Check if budget exceeded
+      if (totalCost > maxBudget) {
+        clearInterval(interval)
+        setJobStatus("failed", "Budget limit reached")
+        updateJobProgress(leadsGenerated, `Budget limit reached at $${totalCost.toFixed(2)}`)
+        return
+      }
+
+      updateJobProgress(
+        leadsGenerated,
+        `Cycle ${currentStep}/${totalSteps}: Generated ${batchSize} leads (Total: ${leadsGenerated}, Cost: $${totalCost.toFixed(2)})`
+      )
+
+      if (currentStep >= totalSteps || leadsGenerated >= targetLeads) {
+        clearInterval(interval)
+        setJobStatus("completed")
+        updateJobProgress(leadsGenerated, `Job completed: ${leadsGenerated} leads generated, Total cost: $${totalCost.toFixed(2)}`)
+      }
+    }, 2000) // 2 seconds per cycle
   }
 
   const handleDesiredLeadsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -54,8 +109,88 @@ export default function GenerateLeadsPage() {
     const leads = parseInt(value) || 0
     setEstimatedCost(calculateEstimatedCost(leads))
   }
+  if (!isAuthenticated()) {
+    return null
+  }
+
+  const isJobRunning = job?.status === "running"
+
   return (
     <div className="container mx-auto px-4 py-8">
+      {/* Failure State */}
+      {job?.status === "failed" && (
+        <Card className="mb-4 bg-red-50 border-red-200">
+          <CardHeader>
+            <CardTitle className="text-red-800">Lead Generation Failed</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-600 mb-4">{job.error}</p>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => {
+                  clearJobState()
+                  // Retry logic here
+                }}
+              >
+                Retry
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => clearJobState()}
+              >
+                Clear
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Top Progress Bar */}
+      {job && job.status !== "completed" && job.status !== "failed" && (
+        <div className="mb-4">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-sm font-semibold">
+              {job.status === "running" ? `Generating leads... (${job.leadsGenerated}/${job.totalLeadsTarget})` : "Starting..."}
+            </span>
+            <span className="text-sm text-gray-600">{Math.round(job.progress)}%</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div
+              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${job.progress}%` }}
+            />
+          </div>
+          <p className="text-xs text-gray-500 mt-1">{job.logs[job.logs.length - 1]}</p>
+        </div>
+      )}
+
+      {/* Completion Summary */}
+      {job?.status === "completed" && (
+        <Card className="mb-4 bg-green-50 border-green-200">
+          <CardHeader>
+            <CardTitle className="text-green-800">Lead Generation Complete</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-gray-600">Leads Generated</p>
+                <p className="text-2xl font-bold">{job.leadsGenerated}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Total Cost</p>
+                <p className="text-2xl font-bold">${(job.leadsGenerated * 0.50).toFixed(2)}</p>
+              </div>
+            </div>
+            <Button
+              className="mt-4"
+              onClick={() => clearJobState()}
+            >
+              Clear
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <h2 className="text-3xl font-bold mb-6">Generate Leads</h2>
 
       <Card className="mb-6">
@@ -67,9 +202,9 @@ export default function GenerateLeadsPage() {
         </CardHeader>
         <CardContent>
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger>
-              <Button size="lg" className="w-full">
-                Generate Leads
+            <DialogTrigger disabled={isJobRunning}>
+              <Button size="lg" className="w-full" disabled={isJobRunning}>
+                {isJobRunning ? "Job Running..." : "Generate Leads"}
               </Button>
             </DialogTrigger>
             <DialogContent>
