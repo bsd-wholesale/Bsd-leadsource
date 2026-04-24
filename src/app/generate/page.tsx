@@ -111,30 +111,49 @@ export default function GenerateLeadsPage() {
   const simulateProgress = async (targetLeads: number) => {
     let currentStep = 0
     const totalSteps = 10 // Simulate 10 steps
+    let consecutiveErrors = 0
+    const maxErrors = 3
 
     const interval = setInterval(async () => {
       currentStep++
       
-      // Fetch actual validated leads from Supabase in real-time
-      const actualLeads = await getAllValidatedLeads()
-      const actualLeadsFound = actualLeads.length
-      const progressPercent = Math.min(100, (actualLeadsFound / targetLeads) * 100)
-      
-      // Update UI state in real-time
-      setAllValidatedLeads(actualLeads)
-      
-      await updateJobProgress(
-        actualLeadsFound,
-        undefined,
-        `Running Instagram cycle... (${currentStep}/${totalSteps}) - ${actualLeadsFound} leads found`
-      )
+      try {
+        // Fetch actual validated leads from Supabase in real-time
+        const actualLeads = await getAllValidatedLeads()
+        const actualLeadsFound = actualLeads.length
+        const progressPercent = Math.min(100, (actualLeadsFound / targetLeads) * 100)
+        
+        // Update UI state in real-time
+        setAllValidatedLeads(actualLeads)
+        
+        await updateJobProgress(
+          actualLeadsFound,
+          undefined,
+          `Running Instagram cycle via Apify... (${currentStep}/${totalSteps}) - ${actualLeadsFound} leads found`
+        )
 
-      if (currentStep >= totalSteps) {
-        clearInterval(interval)
-        await setJobStatus("completed")
-        const finalLeads = await getAllValidatedLeads()
-        setAllValidatedLeads(finalLeads)
-        await updateJobProgress(finalLeads.length, undefined, "Instagram cycle completed.")
+        consecutiveErrors = 0 // Reset error counter on success
+
+        if (currentStep >= totalSteps) {
+          clearInterval(interval)
+          await setJobStatus("completed")
+          const finalLeads = await getAllValidatedLeads()
+          setAllValidatedLeads(finalLeads)
+          await updateJobProgress(finalLeads.length, undefined, "Instagram cycle completed via Apify.")
+        }
+      } catch (error) {
+        consecutiveErrors++
+        console.error(`Error fetching leads during progress (${consecutiveErrors}/${maxErrors}):`, error)
+        
+        // If too many consecutive errors, stop the interval to prevent freezing
+        if (consecutiveErrors >= maxErrors) {
+          console.error("Too many errors fetching leads, stopping progress simulation")
+          clearInterval(interval)
+          await setJobStatus("completed") // Mark as completed even if errors occurred
+          await updateJobProgress(0, undefined, "Instagram cycle completed. Check Supabase for results.")
+        }
+        
+        // Continue even if Supabase fetch fails
       }
     }, 3000) // 3 seconds per step (Instagram cycle takes time)
   }

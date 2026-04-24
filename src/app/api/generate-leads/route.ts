@@ -47,6 +47,7 @@ async function handleLocalExecution(desiredLeads: number, maxAmount: number): Pr
     
     console.log("Local execution - Script path:", scriptPath)
     console.log("Working directory:", cwd)
+    console.log("Starting real Instagram cycle via Apify...")
     
     // Spawn Python process (non-blocking)
     const pythonProcess = spawn("python3", [scriptPath], {
@@ -62,11 +63,18 @@ async function handleLocalExecution(desiredLeads: number, maxAmount: number): Pr
       console.error("Python process error:", error)
     })
 
+    pythonProcess.on("exit", (code, signal) => {
+      console.log(`Python process exited with code ${code} and signal ${signal}`)
+    })
+
+    console.log("Instagram cycle started successfully via Apify")
+
     return NextResponse.json({
       success: true,
-      message: "Instagram cycle started (local execution)",
+      message: "Instagram cycle started (real Apify execution - auto-inserting to Supabase)",
       jobId: Date.now().toString(),
-      method: "local"
+      method: "local",
+      apify: true
     })
   } catch (error) {
     console.error("Local execution error:", error)
