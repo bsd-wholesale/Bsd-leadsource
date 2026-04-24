@@ -34,10 +34,10 @@ export default function LeadsPage() {
     <div className="container mx-auto px-4 py-8">
       <h2 className="text-3xl font-bold mb-6">Leads</h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 mb-6">
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Validated Valid</CardTitle>
+            <CardTitle className="text-lg">WhatsApp Validated Brazil/Paraguay</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">35</div>
@@ -46,33 +46,18 @@ export default function LeadsPage() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Non-Validated Valid</CardTitle>
+            <CardTitle className="text-lg">WhatsApp Not Validated</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Validated Non-Valid</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Non-Validated Non-Valid</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">33</div>
+            <Badge variant="secondary" className="mt-2">Pending</Badge>
           </CardContent>
         </Card>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Validated Valid Leads (Priority)</CardTitle>
+          <CardTitle>WhatsApp Validated Brazil/Paraguay (Priority)</CardTitle>
           <CardDescription>Brazil, Nicaragua, Paraguay</CardDescription>
         </CardHeader>
         <CardContent>
