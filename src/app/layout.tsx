@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
+import { isAuthenticated } from "@/lib/auth";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -38,6 +39,7 @@ export default function RootLayout({
                 <Link href="/leads" className="text-gray-600 hover:text-gray-900">Leads</Link>
                 <Link href="/generate" className="text-gray-600 hover:text-gray-900">Generate Leads</Link>
                 <Link href="/actions" className="text-gray-600 hover:text-gray-900">Actions</Link>
+                <Link href="/auth" className="text-gray-600 hover:text-gray-900">Auth</Link>
               </div>
             </div>
           </div>

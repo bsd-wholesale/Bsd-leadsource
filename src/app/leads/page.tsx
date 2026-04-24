@@ -1,11 +1,28 @@
+"use client"
+
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { isAuthenticated } from "@/lib/auth"
 
 export default function LeadsPage() {
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      router.push("/auth")
+    }
+  }, [router])
+
+  if (!isAuthenticated()) {
+    return null
+  }
+
   // Mock data - will be replaced with Supabase data
   const leads = [
     { id: 1, username: "mi.atacado.brasil", whatsapp: "+5511999999999", country: "Brazil" },
