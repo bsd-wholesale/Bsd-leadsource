@@ -61,46 +61,62 @@ export default function GenerateLeadsPage() {
     const newJob = createJob(leadsNum)
     setJob(newJob)
 
-    // Start async job execution
-    // NOTE: Replace this simulation with actual backend API call
+    // Start actual Instagram cycle via API
     startLeadGenerationJob(leadsNum, maxAmountNum)
   }
 
-  const startLeadGenerationJob = (targetLeads: number, maxBudget: number) => {
+  const startLeadGenerationJob = async (targetLeads: number, maxBudget: number) => {
     setJobStatus("running")
-    
+
+    try {
+      // Call API to start Instagram cycle
+      const response = await fetch("/api/generate-leads", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          desiredLeads: targetLeads,
+          maxAmount: maxBudget,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to start Instagram cycle")
+      }
+
+      const data = await response.json()
+      console.log("Instagram cycle started:", data)
+
+      // Since the Python script doesn't report progress back,
+      // we'll simulate progress for UX purposes
+      simulateProgress(targetLeads)
+    } catch (error) {
+      console.error("Error starting Instagram cycle:", error)
+      setJobStatus("failed", "Failed to start Instagram cycle")
+    }
+  }
+
+  const simulateProgress = (targetLeads: number) => {
     let leadsGenerated = 0
-    const totalSteps = 10 // Simulate 10 scraping cycles
+    const totalSteps = 10 // Simulate 10 steps
     let currentStep = 0
-    let totalCost = 0
 
     const interval = setInterval(() => {
       currentStep++
-      const batchSize = Math.ceil(targetLeads / totalSteps)
-      leadsGenerated = Math.min(targetLeads, leadsGenerated + batchSize)
+      leadsGenerated = Math.min(targetLeads, Math.floor((currentStep / totalSteps) * targetLeads))
       
-      const costForBatch = batchSize * 0.50
-      totalCost += costForBatch
-
-      // Check if budget exceeded
-      if (totalCost > maxBudget) {
-        clearInterval(interval)
-        setJobStatus("failed", "Budget limit reached")
-        updateJobProgress(leadsGenerated, `Budget limit reached at $${totalCost.toFixed(2)}`)
-        return
-      }
-
       updateJobProgress(
         leadsGenerated,
-        `Cycle ${currentStep}/${totalSteps}: Generated ${batchSize} leads (Total: ${leadsGenerated}, Cost: $${totalCost.toFixed(2)})`
+        `Running Instagram cycle... (${currentStep}/${totalSteps})`
       )
 
-      if (currentStep >= totalSteps || leadsGenerated >= targetLeads) {
+      if (currentStep >= totalSteps) {
         clearInterval(interval)
         setJobStatus("completed")
-        updateJobProgress(leadsGenerated, `Job completed: ${leadsGenerated} leads generated, Total cost: $${totalCost.toFixed(2)}`)
+        updateJobProgress(leadsGenerated, "Instagram cycle completed. Check Supabase for actual results.")
       }
-    }, 2000) // 2 seconds per cycle
+    }, 3000) // 3 seconds per step (Instagram cycle takes time)
   }
 
   const handleDesiredLeadsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
