@@ -26,8 +26,8 @@ export default function GenerateLeadsPage() {
 
   useEffect(() => {
     // Poll for job state
-    const interval = setInterval(() => {
-      const currentJob = getJobState()
+    const interval = setInterval(async () => {
+      const currentJob = await getJobState()
       if (currentJob) {
         setJob(currentJob)
       }
@@ -44,7 +44,7 @@ export default function GenerateLeadsPage() {
     return estimated.toFixed(2)
   }
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     const maxAmountNum = parseFloat(maxAmount)
     const leadsNum = parseInt(desiredLeads)
     const cost = parseFloat(calculateEstimatedCost(leadsNum))
@@ -58,7 +58,7 @@ export default function GenerateLeadsPage() {
     setOpen(false)
 
     // Create job
-    const newJob = createJob(leadsNum)
+    const newJob = await createJob(leadsNum)
     setJob(newJob)
 
     // Start actual Instagram cycle via API
@@ -66,7 +66,7 @@ export default function GenerateLeadsPage() {
   }
 
   const startLeadGenerationJob = async (targetLeads: number, maxBudget: number) => {
-    setJobStatus("running")
+    await setJobStatus("running")
 
     try {
       // Call API to start Instagram cycle
@@ -93,28 +93,28 @@ export default function GenerateLeadsPage() {
       simulateProgress(targetLeads)
     } catch (error) {
       console.error("Error starting Instagram cycle:", error)
-      setJobStatus("failed", "Failed to start Instagram cycle")
+      await setJobStatus("failed", "Failed to start Instagram cycle")
     }
   }
 
-  const simulateProgress = (targetLeads: number) => {
+  const simulateProgress = async (targetLeads: number) => {
     let leadsGenerated = 0
     const totalSteps = 10 // Simulate 10 steps
     let currentStep = 0
 
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       currentStep++
       leadsGenerated = Math.min(targetLeads, Math.floor((currentStep / totalSteps) * targetLeads))
       
-      updateJobProgress(
+      await updateJobProgress(
         leadsGenerated,
         `Running Instagram cycle... (${currentStep}/${totalSteps})`
       )
 
       if (currentStep >= totalSteps) {
         clearInterval(interval)
-        setJobStatus("completed")
-        updateJobProgress(leadsGenerated, "Instagram cycle completed. Check Supabase for actual results.")
+        await setJobStatus("completed")
+        await updateJobProgress(leadsGenerated, "Instagram cycle completed. Check Supabase for actual results.")
       }
     }, 3000) // 3 seconds per step (Instagram cycle takes time)
   }

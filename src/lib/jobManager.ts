@@ -1,3 +1,9 @@
+import { createClient } from "@supabase/supabase-js"
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabase = createClient(supabaseUrl, supabaseKey)
+
 export interface JobState {
   id: string
   status: "pending" | "running" | "completed" | "failed"
@@ -10,60 +16,130 @@ export interface JobState {
   error?: string
 }
 
-const JOB_STORAGE_KEY = "lead_generation_job"
+const LOCAL_JOB_STORAGE_KEY = "lead_generation_job"
 
-export function getJobState(): JobState | null {
+export async function getJobState(jobId?: string): Promise<JobState | null> {
+  if (jobId) {
+    // Try to get from Supabase
+    const { data, error } = await supabase
+      .from("lead_generation_jobs")
+      .select("*")
+      .eq("id", jobId)
+      .single()
+
+    if (!error && data) {
+      return {
+        id: data.id,
+        status: data.status,
+        progress: data.progress,
+        totalLeadsTarget: data.desired_leads,
+        leadsGenerated: data.leads_generated,
+        logs: data.logs || [],
+        createdAt: data.created_at,
+        completedAt: data.completed_at,
+        error: data.error,
+      }
+    }
+  }
+
+  // Fallback to localStorage
   if (typeof window === "undefined") return null
-  const stored = localStorage.getItem(JOB_STORAGE_KEY)
+  const stored = localStorage.getItem(LOCAL_JOB_STORAGE_KEY)
   return stored ? JSON.parse(stored) : null
 }
 
 export function setJobState(job: JobState): void {
   if (typeof window === "undefined") return
-  localStorage.setItem(JOB_STORAGE_KEY, JSON.stringify(job))
+  localStorage.setItem(LOCAL_JOB_STORAGE_KEY, job.id)
 }
 
 export function clearJobState(): void {
   if (typeof window === "undefined") return
-  localStorage.removeItem(JOB_STORAGE_KEY)
+  localStorage.removeItem(LOCAL_JOB_STORAGE_KEY)
 }
 
-export function createJob(totalLeadsTarget: number): JobState {
-  const job: JobState = {
-    id: Date.now().toString(),
-    status: "pending",
-    progress: 0,
-    totalLeadsTarget,
-    leadsGenerated: 0,
-    logs: ["Job created"],
-    createdAt: new Date().toISOString(),
-  }
-  setJobState(job)
-  return job
-}
+export async function createJob(totalLeadsTarget: number): Promise<JobState> {
+  const { data, error } = await supabase
+    .from("lead_generation_jobs")
+    .insert({
+      desired_leads: totalLeadsTarget,
+      status: "pending",
+      progress: 0,
+      leads_generated: 0,
+      logs: ["Job created"],
+    })
+    .select()
+    .single()
 
-export function updateJobProgress(leadsGenerated: number, log?: string): void {
-  const job = getJobState()
-  if (!job) return
-
-  job.leadsGenerated = leadsGenerated
-  job.progress = (leadsGenerated / job.totalLeadsTarget) * 100
-  if (log) {
-    job.logs.push(log)
-  }
-  setJobState(job)
-}
-
-export function setJobStatus(status: JobState["status"], error?: string): void {
-  const job = getJobState()
-  if (!job) return
-
-  job.status = status
-  if (status === "completed" || status === "failed") {
-    job.completedAt = new Date().toISOString()
-  }
   if (error) {
-    job.error = error
+    console.error("Supabase error:", error)
+    // Fallback to local job
+    const job: JobState = {
+      id: Date.now().toString(),
+      status: "pending",
+      progress: 0,
+      totalLeadsTarget,
+      leadsGenerated: 0,
+      logs: ["Job created"],
+      createdAt: new Date().toISOString(),
+    }
+    setJobState(job)
+    return job
   }
-  setJobState(job)
+
+  return {
+    id: data.id,
+    status: data.status,
+    progress: data.progress,
+    totalLeadsTarget: data.desired_leads,
+    leadsGenerated: data.leads_generated,
+    logs: data.logs || [],
+    createdAt: data.created_at,
+  }
 }
+
+export async function updateJobProgress(leadsGenerated: number, log?: string): Promise<void> {
+  const localJob = await getJobState()
+  if (!localJob) return
+
+  // Update in Supabase
+  const { error } = await supabase
+    .from("lead_generation_jobs")
+    .update({
+      leads_generated: leadsGenerated,
+      progress: (leadsGenerated / localJob.totalLeadsTarget) * 100,
+      logs: log ? [...localJob.logs, log] : localJob.logs,
+    })
+    .eq("id", localJob.id)
+
+  if (error) {
+    console.error("Supabase update error:", error)
+  }
+}
+
+export async function setJobStatus(status: JobState["status"], error?: string): Promise<void> {
+  const localJob = await getJobState()
+  if (!localJob) return
+
+  const updateData: any = {
+    status,
+  }
+
+  if (status === "completed" || status === "failed") {
+    updateData.completed_at = new Date().toISOString()
+  }
+
+  if (error) {
+    updateData.error = error
+  }
+
+  const { error: updateError } = await supabase
+    .from("lead_generation_jobs")
+    .update(updateData)
+    .eq("id", localJob.id)
+
+  if (updateError) {
+    console.error("Supabase status update error:", updateError)
+  }
+}
+

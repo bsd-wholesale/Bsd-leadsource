@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { spawn } from "child_process"
-import path from "path"
+import { createClient } from "@supabase/supabase-js"
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabase = createClient(supabaseUrl, supabaseKey)
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,38 +18,42 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get the path to the Python script
-    // The dashboard is in a subdirectory, so we need to go up to the parent
-    const scriptPath = path.resolve(process.cwd(), "..", "scripts", "run_real_instagram_cycle.py")
-    const cwd = path.resolve(process.cwd(), "..")
-    
-    console.log("Script path:", scriptPath)
-    console.log("Working directory:", cwd)
-    
-    // Spawn Python process (non-blocking)
-    const pythonProcess = spawn("python3", [scriptPath], {
-      cwd: cwd,
-      detached: true,
-      stdio: "ignore"
-    })
+    // Create job in Supabase
+    const { data: job, error } = await supabase
+      .from("lead_generation_jobs")
+      .insert({
+        desired_leads: desiredLeads,
+        max_budget: maxAmount,
+        status: "pending",
+        progress: 0,
+        leads_generated: 0,
+        logs: ["Job created"],
+      })
+      .select()
+      .single()
 
-    // Detach the process so it continues running even if the parent exits
-    pythonProcess.unref()
-
-    pythonProcess.on("error", (error) => {
-      console.error("Python process error:", error)
-    })
+    if (error) {
+      console.error("Supabase error:", error)
+      // If table doesn't exist, fall back to local job creation
+      return NextResponse.json({
+        success: true,
+        message: "Job created (note: Supabase table 'lead_generation_jobs' needs to be created)",
+        jobId: Date.now().toString(),
+        fallback: true
+      })
+    }
 
     return NextResponse.json({
       success: true,
-      message: "Instagram cycle started",
-      jobId: Date.now().toString()
+      message: "Job created in Supabase",
+      jobId: job.id
     })
   } catch (error) {
     console.error("API error:", error)
     return NextResponse.json(
-      { error: "Failed to start Instagram cycle" },
+      { error: "Failed to create job" },
       { status: 500 }
     )
   }
 }
+
