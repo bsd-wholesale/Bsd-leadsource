@@ -1,14 +1,20 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { isAuthenticated } from "@/lib/auth"
 
 export default function GenerateLeadsPage() {
   const router = useRouter()
+  const [open, setOpen] = useState(false)
+  const [maxAmount, setMaxAmount] = useState("")
+  const [desiredLeads, setDesiredLeads] = useState("")
+  const [estimatedCost, setEstimatedCost] = useState("")
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -18,6 +24,34 @@ export default function GenerateLeadsPage() {
 
   if (!isAuthenticated()) {
     return null
+  }
+
+  // Cost estimation: 6 cycles for 10-12 leads at $4.70-6.20
+  // Average: ~$5.45 per validated lead
+  const calculateEstimatedCost = () => {
+    const leads = parseInt(desiredLeads) || 0
+    const avgCostPerLead = 5.45
+    const estimated = leads * avgCostPerLead
+    return estimated.toFixed(2)
+  }
+
+  const handleGenerate = () => {
+    const maxAmountNum = parseFloat(maxAmount)
+    const leadsNum = parseInt(desiredLeads)
+    const cost = parseFloat(calculateEstimatedCost())
+
+    if (cost > maxAmountNum) {
+      alert(`Estimated cost ($${cost}) exceeds max amount ($${maxAmount}). Please adjust your settings.`)
+      return
+    }
+
+    alert(`Generating ${leadsNum} leads with max spend of $${maxAmountNum}...`)
+    setOpen(false)
+  }
+
+  const handleDesiredLeadsChange = (value: string) => {
+    setDesiredLeads(value)
+    setEstimatedCost(calculateEstimatedCost())
   }
   return (
     <div className="container mx-auto px-4 py-8">
@@ -55,13 +89,64 @@ export default function GenerateLeadsPage() {
         <CardHeader>
           <CardTitle>Generate Leads</CardTitle>
           <CardDescription>
-            Press the button to generate Instagram leads automatically
+            Set your budget and desired lead count
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button size="lg" className="w-full">
-            Generate Leads
-          </Button>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger>
+              <Button size="lg" className="w-full">
+                Generate Leads
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Generate Leads Settings</DialogTitle>
+                <DialogDescription>
+                  Set your budget and desired lead count. System will stop scraping once budget limit is reached.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-semibold">Max Amount ($)</label>
+                  <Input
+                    type="number"
+                    placeholder="Enter max amount"
+                    value={maxAmount}
+                    onChange={(e) => setMaxAmount(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-semibold">Desired Validated Leads</label>
+                  <Input
+                    type="number"
+                    placeholder="Enter desired lead count"
+                    value={desiredLeads}
+                    onChange={(e) => handleDesiredLeadsChange(e.target.value)}
+                  />
+                </div>
+                <div className="border rounded-lg p-4 bg-gray-50">
+                  <p className="text-sm text-gray-600 mb-2">Cost Estimator</p>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Based on last run: 6 cycles for 10-12 leads at $4.70-6.20
+                  </p>
+                  <p className="text-2xl font-bold">
+                    Estimated Cost: ${estimatedCost || "0.00"}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    (~$5.45 per validated lead)
+                  </p>
+                </div>
+                <Button 
+                  className="w-full" 
+                  onClick={handleGenerate}
+                  disabled={!maxAmount || !desiredLeads}
+                >
+                  Generate Leads
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </CardContent>
       </Card>
 
