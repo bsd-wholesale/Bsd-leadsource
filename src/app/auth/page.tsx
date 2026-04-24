@@ -33,23 +33,29 @@ export default function AuthPage() {
     }
 
     setLoading(true)
-    // Simulate sending SMS code
+    // Generate a 4-digit code and show it in the UI (for testing)
+    const generatedCode = Math.floor(1000 + Math.random() * 9000).toString()
+    localStorage.setItem("verificationCode", generatedCode)
+    
     setTimeout(() => {
       setStep("code")
       setLoading(false)
-    }, 1000)
+      // Show the code in the UI for testing
+      alert(`Verification code: ${generatedCode}`)
+    }, 500)
   }
 
   const handleVerifyCode = () => {
     setLoading(true)
-    // Simple verification - accept any 4-digit code
+    const storedCode = localStorage.getItem("verificationCode")
     setTimeout(() => {
-      if (code.length === 4) {
+      if (code === storedCode) {
         // Store auth state in localStorage
         localStorage.setItem("auth", "true")
+        localStorage.removeItem("verificationCode")
         router.push("/")
       } else {
-        setError("Please enter a 4-digit code")
+        setError("Invalid code. Please try again.")
         setLoading(false)
       }
     }, 500)
