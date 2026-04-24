@@ -160,3 +160,30 @@ export async function setJobStatus(status: JobState["status"], error?: string): 
   }
 }
 
+export async function getAllValidatedLeads(): Promise<ValidatedLead[]> {
+  try {
+    // Fetch all leads from Supabase that are validated and from target countries
+    const { data, error } = await supabase
+      .from("leads")
+      .select("username, whatsapp_number, country")
+      .in("country", ["Brazil", "Paraguay", "Nicaragua"])
+      .not("whatsapp_number", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(100)
+
+    if (error) {
+      console.error("Error fetching validated leads:", error)
+      return []
+    }
+
+    return (data || []).map((lead) => ({
+      username: lead.username,
+      whatsapp: lead.whatsapp_number,
+      country: lead.country,
+    }))
+  } catch (error) {
+    console.error("Error fetching validated leads:", error)
+    return []
+  }
+}
+

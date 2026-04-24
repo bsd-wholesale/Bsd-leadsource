@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { isAuthenticated } from "@/lib/auth"
-import { getJobState, createJob, updateJobProgress, setJobStatus, clearJobState, type JobState, type ValidatedLead } from "@/lib/jobManager"
+import { getJobState, createJob, updateJobProgress, setJobStatus, clearJobState, getAllValidatedLeads, type JobState, type ValidatedLead } from "@/lib/jobManager"
 
 export default function GenerateLeadsPage() {
   const router = useRouter()
@@ -18,6 +18,7 @@ export default function GenerateLeadsPage() {
   const [desiredLeads, setDesiredLeads] = useState("")
   const [estimatedCost, setEstimatedCost] = useState("")
   const [job, setJob] = useState<JobState | null>(null)
+  const [allValidatedLeads, setAllValidatedLeads] = useState<ValidatedLead[]>([])
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -35,6 +36,15 @@ export default function GenerateLeadsPage() {
     }, 1000)
 
     return () => clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    // Fetch all validated leads from Supabase
+    const fetchAllLeads = async () => {
+      const leads = await getAllValidatedLeads()
+      setAllValidatedLeads(leads)
+    }
+    fetchAllLeads()
   }, [])
 
   // Cost estimation: 6 cycles for 10-12 validated leads at $4.70-6.20
@@ -145,9 +155,12 @@ export default function GenerateLeadsPage() {
             <p className="text-sm text-gray-600 mb-4">{job.error}</p>
             <div className="flex gap-2">
               <Button
-                onClick={() => {
+                onClick={async () => {
                   clearJobState()
                   setJob(null)
+                  // Refresh all validated leads from Supabase
+                  const leads = await getAllValidatedLeads()
+                  setAllValidatedLeads(leads)
                 }}
               >
                 Clear
@@ -185,19 +198,19 @@ export default function GenerateLeadsPage() {
           <CardContent>
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
-                <p className="text-sm text-gray-600">Validated Leads Found</p>
+                <p className="text-sm text-gray-600">Validated Leads Found (This Run)</p>
                 <p className="text-2xl font-bold">{job.leadsGenerated}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Total Cost</p>
+                <p className="text-sm text-gray-600">Total Cost (This Run)</p>
                 <p className="text-2xl font-bold">${(job.leadsGenerated * 0.50).toFixed(2)}</p>
               </div>
             </div>
             
-            {/* Lead Breakdown Table */}
-            {job.validatedLeads && job.validatedLeads.length > 0 && (
+            {/* Lead Breakdown Table - All Validated Leads from Supabase */}
+            {allValidatedLeads && allValidatedLeads.length > 0 && (
               <div className="mb-4">
-                <p className="text-sm font-semibold mb-2">Validated Leads Breakdown</p>
+                <p className="text-sm font-semibold mb-2">All Validated Leads ({allValidatedLeads.length} total)</p>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -207,7 +220,7 @@ export default function GenerateLeadsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {job.validatedLeads.map((lead, index) => (
+                    {allValidatedLeads.map((lead, index) => (
                       <TableRow key={index}>
                         <TableCell>{lead.username}</TableCell>
                         <TableCell>{lead.whatsapp}</TableCell>
@@ -223,9 +236,12 @@ export default function GenerateLeadsPage() {
             
             <Button
               className="mt-4"
-              onClick={() => {
+              onClick={async () => {
                 clearJobState()
                 setJob(null)
+                // Refresh all validated leads from Supabase
+                const leads = await getAllValidatedLeads()
+                setAllValidatedLeads(leads)
               }}
             >
               Clear
@@ -307,21 +323,21 @@ export default function GenerateLeadsPage() {
           <CardDescription>Breakdown of extracted leads</CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Show breakdown table if job completed */}
-          {job?.status === "completed" && job.validatedLeads && job.validatedLeads.length > 0 ? (
+          {/* Show breakdown table with all validated leads from Supabase */}
+          {allValidatedLeads && allValidatedLeads.length > 0 ? (
             <div className="mb-4">
               <div className="grid grid-cols-3 gap-4 mb-4">
                 <div className="border rounded-lg p-4">
                   <p className="font-semibold mb-2">Total Validated</p>
-                  <p className="text-2xl font-bold">{job.leadsGenerated}</p>
+                  <p className="text-2xl font-bold">{allValidatedLeads.length}</p>
                 </div>
                 <div className="border rounded-lg p-4">
                   <p className="font-semibold mb-2">Total Cost</p>
-                  <p className="text-2xl font-bold">${(job.leadsGenerated * 0.50).toFixed(2)}</p>
+                  <p className="text-2xl font-bold">${(allValidatedLeads.length * 0.50).toFixed(2)}</p>
                 </div>
                 <div className="border rounded-lg p-4">
-                  <p className="font-semibold mb-2">Timestamp</p>
-                  <p className="text-sm text-gray-600">{new Date(job.completedAt || job.createdAt).toLocaleString()}</p>
+                  <p className="font-semibold mb-2">Last Update</p>
+                  <p className="text-sm text-gray-600">Latest leads from all cycles</p>
                 </div>
               </div>
               
@@ -334,7 +350,7 @@ export default function GenerateLeadsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {job.validatedLeads.map((lead, index) => (
+                  {allValidatedLeads.map((lead, index) => (
                     <TableRow key={index}>
                       <TableCell>{lead.username}</TableCell>
                       <TableCell>{lead.whatsapp}</TableCell>
