@@ -2,6 +2,7 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { isAuthenticated, logout } from "@/lib/auth"
@@ -76,8 +77,8 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>No Answer/NG</CardTitle>
-            <CardDescription>Leads not interested</CardDescription>
+            <CardTitle>Leads Left to Contact</CardTitle>
+            <CardDescription>Leads not yet contacted</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="text-4xl font-bold">0</div>
@@ -86,14 +87,39 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Total Validated</CardTitle>
-            <CardDescription>Validated WhatsApp leads</CardDescription>
+            <CardTitle>No Answer/NG</CardTitle>
+            <CardDescription>Leads not interested</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-4xl font-bold">35</div>
-            <Badge className="mt-2">Valid</Badge>
+            <div className="text-4xl font-bold">0</div>
           </CardContent>
         </Card>
+
+        <Link href="/leads?category=validated" className="cursor-pointer">
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <CardTitle>WhatsApp Validated Brazil/Paraguay</CardTitle>
+              <CardDescription>Validated WhatsApp leads</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-4xl font-bold">35</div>
+              <Badge className="mt-2">Valid</Badge>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/leads?category=not-validated" className="cursor-pointer">
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <CardTitle>WhatsApp Not Validated</CardTitle>
+              <CardDescription>Non-validated WhatsApp leads</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-4xl font-bold">0</div>
+              <Badge variant="secondary" className="mt-2">Pending</Badge>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
     </div>
   )
