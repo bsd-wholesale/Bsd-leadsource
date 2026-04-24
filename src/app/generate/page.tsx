@@ -51,7 +51,10 @@ export default function GenerateLeadsPage() {
 
   const handleDesiredLeadsChange = (value: string) => {
     setDesiredLeads(value)
-    setEstimatedCost(calculateEstimatedCost())
+    const leads = parseInt(value) || 0
+    const avgCostPerLead = 5.45
+    const estimated = leads * avgCostPerLead
+    setEstimatedCost(estimated.toFixed(2))
   }
   return (
     <div className="container mx-auto px-4 py-8">
