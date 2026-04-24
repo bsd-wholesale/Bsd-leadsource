@@ -26,10 +26,9 @@ export default function GenerateLeadsPage() {
     return null
   }
 
-  // Cost estimation: 6 cycles for 10-12 leads at $4.70-6.20
+  // Cost estimation: 6 cycles for 10-15 leads at $4.70-6.20
   // Average: ~$5.45 per validated lead
-  const calculateEstimatedCost = () => {
-    const leads = parseInt(desiredLeads) || 0
+  const calculateEstimatedCost = (leads: number) => {
     const avgCostPerLead = 5.45
     const estimated = leads * avgCostPerLead
     return estimated.toFixed(2)
@@ -38,7 +37,7 @@ export default function GenerateLeadsPage() {
   const handleGenerate = () => {
     const maxAmountNum = parseFloat(maxAmount)
     const leadsNum = parseInt(desiredLeads)
-    const cost = parseFloat(calculateEstimatedCost())
+    const cost = parseFloat(calculateEstimatedCost(leadsNum))
 
     if (cost > maxAmountNum) {
       alert(`Estimated cost ($${cost}) exceeds max amount ($${maxAmount}). Please adjust your settings.`)
@@ -49,12 +48,11 @@ export default function GenerateLeadsPage() {
     setOpen(false)
   }
 
-  const handleDesiredLeadsChange = (value: string) => {
+  const handleDesiredLeadsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
     setDesiredLeads(value)
     const leads = parseInt(value) || 0
-    const avgCostPerLead = 5.45
-    const estimated = leads * avgCostPerLead
-    setEstimatedCost(estimated.toFixed(2))
+    setEstimatedCost(calculateEstimatedCost(leads))
   }
   return (
     <div className="container mx-auto px-4 py-8">
@@ -125,7 +123,7 @@ export default function GenerateLeadsPage() {
                     type="number"
                     placeholder="Enter desired lead count"
                     value={desiredLeads}
-                    onChange={(e) => handleDesiredLeadsChange(e.target.value)}
+                    onChange={(e) => handleDesiredLeadsChange(e)}
                   />
                 </div>
                 <div className="border rounded-lg p-4 bg-gray-50">
