@@ -3,9 +3,9 @@ import { createClient } from "@supabase/supabase-js"
 import { spawn } from "child_process"
 import path from "path"
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-const supabase = createClient(supabaseUrl, supabaseKey)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null
 
 // Check if running in local development
 const isLocal = process.env.NODE_ENV === "development" || process.env.VERCEL_ENV !== "production"
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function handleLocalExecution(desiredLeads: number, maxAmount: number) {
+async function handleLocalExecution(desiredLeads: number, maxAmount: number): Promise<NextResponse> {
   try {
     // Get the path to the Python script
     const scriptPath = path.resolve(process.cwd(), "..", "scripts", "run_real_instagram_cycle.py")
@@ -75,7 +75,13 @@ async function handleLocalExecution(desiredLeads: number, maxAmount: number) {
   }
 }
 
-async function handleSupabaseJob(desiredLeads: number, maxAmount: number) {
+async function handleSupabaseJob(desiredLeads: number, maxAmount: number): Promise<NextResponse> {
+  if (!supabase) {
+    // Supabase not configured, fall back to local execution
+    console.log("Supabase not configured, falling back to local execution")
+    return handleLocalExecution(desiredLeads, maxAmount)
+  }
+
   try {
     // Create job in Supabase
     const { data: job, error } = await supabase
@@ -86,6 +92,7 @@ async function handleSupabaseJob(desiredLeads: number, maxAmount: number) {
         status: "pending",
         progress: 0,
         leads_generated: 0,
+        validated_leads: [],
         logs: ["Job created"],
       })
       .select()
@@ -93,11 +100,8 @@ async function handleSupabaseJob(desiredLeads: number, maxAmount: number) {
 
     if (error) {
       console.error("Supabase error:", error)
-      return NextResponse.json({
-        success: false,
-        error: "Supabase table 'lead_generation_jobs' needs to be created",
-        jobId: Date.now().toString()
-      }, { status: 500 })
+      // Fall back to local execution if Supabase fails
+      return handleLocalExecution(desiredLeads, maxAmount)
     }
 
     return NextResponse.json({
@@ -108,10 +112,7 @@ async function handleSupabaseJob(desiredLeads: number, maxAmount: number) {
     })
   } catch (error) {
     console.error("Supabase job creation error:", error)
-    return NextResponse.json(
-      { error: "Failed to create job in Supabase" },
-      { status: 500 }
-    )
+    // Fall back to local execution
+    return handleLocalExecution(desiredLeads, maxAmount)
   }
 }
-

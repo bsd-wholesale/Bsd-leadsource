@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js"
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-const supabase = createClient(supabaseUrl, supabaseKey)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null
 
 export interface ValidatedLead {
   username: string
@@ -26,7 +26,7 @@ export interface JobState {
 const LOCAL_JOB_STORAGE_KEY = "lead_generation_job"
 
 export async function getJobState(jobId?: string): Promise<JobState | null> {
-  if (jobId) {
+  if (jobId && supabase) {
     // Try to get from Supabase
     const { data, error } = await supabase
       .from("lead_generation_jobs")
@@ -67,6 +67,22 @@ export function clearJobState(): void {
 }
 
 export async function createJob(totalLeadsTarget: number): Promise<JobState> {
+  if (!supabase) {
+    // Fallback to local job
+    const job: JobState = {
+      id: Date.now().toString(),
+      status: "pending",
+      progress: 0,
+      totalLeadsTarget,
+      leadsGenerated: 0,
+      validatedLeads: [],
+      logs: ["Job created"],
+      createdAt: new Date().toISOString(),
+    }
+    setJobState(job)
+    return job
+  }
+
   const { data, error } = await supabase
     .from("lead_generation_jobs")
     .insert({
@@ -118,20 +134,31 @@ export async function updateJobProgress(leadsGenerated: number, validatedLead?: 
     updatedValidatedLeads = [...updatedValidatedLeads, validatedLead]
   }
 
-  // Update in Supabase
-  const { error } = await supabase
-    .from("lead_generation_jobs")
-    .update({
-      leads_generated: leadsGenerated,
-      progress: (leadsGenerated / localJob.totalLeadsTarget) * 100,
-      validated_leads: updatedValidatedLeads,
-      logs: log ? [...localJob.logs, log] : localJob.logs,
-    })
-    .eq("id", localJob.id)
+  // Update in Supabase if available
+  if (supabase) {
+    const { error } = await supabase
+      .from("lead_generation_jobs")
+      .update({
+        leads_generated: leadsGenerated,
+        progress: (leadsGenerated / localJob.totalLeadsTarget) * 100,
+        validated_leads: updatedValidatedLeads,
+        logs: log ? [...localJob.logs, log] : localJob.logs,
+      })
+      .eq("id", localJob.id)
 
-  if (error) {
-    console.error("Supabase update error:", error)
+    if (error) {
+      console.error("Supabase update error:", error)
+    }
   }
+
+  // Always update localStorage
+  localJob.leadsGenerated = leadsGenerated
+  localJob.progress = (leadsGenerated / localJob.totalLeadsTarget) * 100
+  localJob.validatedLeads = updatedValidatedLeads
+  if (log) {
+    localJob.logs.push(log)
+  }
+  setJobState(localJob)
 }
 
 export async function setJobStatus(status: JobState["status"], error?: string): Promise<void> {
@@ -150,17 +177,35 @@ export async function setJobStatus(status: JobState["status"], error?: string): 
     updateData.error = error
   }
 
-  const { error: updateError } = await supabase
-    .from("lead_generation_jobs")
-    .update(updateData)
-    .eq("id", localJob.id)
+  // Update in Supabase if available
+  if (supabase) {
+    const { error: updateError } = await supabase
+      .from("lead_generation_jobs")
+      .update(updateData)
+      .eq("id", localJob.id)
 
-  if (updateError) {
-    console.error("Supabase status update error:", updateError)
+    if (updateError) {
+      console.error("Supabase status update error:", updateError)
+    }
   }
+
+  // Always update localStorage
+  localJob.status = status
+  if (status === "completed" || status === "failed") {
+    localJob.completedAt = new Date().toISOString()
+  }
+  if (error) {
+    localJob.error = error
+  }
+  setJobState(localJob)
 }
 
 export async function getAllValidatedLeads(): Promise<ValidatedLead[]> {
+  if (!supabase) {
+    console.log("Supabase not configured, returning empty leads list")
+    return []
+  }
+
   try {
     // Fetch all leads from Supabase that are validated and from target countries
     const { data, error } = await supabase
@@ -186,4 +231,5 @@ export async function getAllValidatedLeads(): Promise<ValidatedLead[]> {
     return []
   }
 }
+
 
