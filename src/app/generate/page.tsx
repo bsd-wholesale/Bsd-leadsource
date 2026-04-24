@@ -19,6 +19,8 @@ export default function GenerateLeadsPage() {
   const [estimatedCost, setEstimatedCost] = useState("")
   const [job, setJob] = useState<JobState | null>(null)
   const [allValidatedLeads, setAllValidatedLeads] = useState<ValidatedLead[]>([])
+  const [currentRunLeads, setCurrentRunLeads] = useState<ValidatedLead[]>([])
+  const [startingLeadCount, setStartingLeadCount] = useState(0)
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -39,13 +41,13 @@ export default function GenerateLeadsPage() {
   }, [])
 
   useEffect(() => {
-    // Fetch all validated leads from Supabase
+    // Fetch all validated leads from Supabase on mount
     const fetchAllLeads = async () => {
       const leads = await getAllValidatedLeads()
       setAllValidatedLeads(leads)
     }
     fetchAllLeads()
-  }, [job?.status]) // Re-fetch when job status changes
+  }, [])
 
   // Cost estimation: 6 cycles for 10-12 validated leads at $4.70-6.20
   // Cost per validated lead: $0.39-$0.62 (average ~$0.50 per lead)
@@ -67,6 +69,11 @@ export default function GenerateLeadsPage() {
 
     // Close modal immediately
     setOpen(false)
+
+    // Capture starting lead count before run
+    const startingLeads = await getAllValidatedLeads()
+    setStartingLeadCount(startingLeads.length)
+    setCurrentRunLeads([])
 
     // Create job
     const newJob = await createJob(leadsNum)
@@ -120,32 +127,34 @@ export default function GenerateLeadsPage() {
       try {
         // Fetch actual validated leads from Supabase in real-time
         const actualLeads = await getAllValidatedLeads()
-        const actualLeadsFound = actualLeads.length
-        const progressPercent = Math.min(100, (actualLeadsFound / targetLeads) * 100)
+        const currentRunLeadsFound = actualLeads.length - startingLeadCount
+        const progressPercent = Math.min(100, (currentRunLeadsFound / targetLeads) * 100)
         
         // Update UI state in real-time
         setAllValidatedLeads(actualLeads)
+        setCurrentRunLeads(actualLeads.slice(startingLeadCount))
         
+        // Update job progress with actual leads found in this run
         await updateJobProgress(
-          actualLeadsFound,
+          currentRunLeadsFound,
           undefined,
-          `Running Instagram cycle via Apify... (${actualLeadsFound}/${targetLeads} leads found)`
+          `Running Instagram cycle via Apify... (${currentRunLeadsFound}/${targetLeads} leads found)`
         )
 
         consecutiveErrors = 0 // Reset error counter on success
 
         // Stop when desired leads count is reached
-        if (actualLeadsFound >= targetLeads) {
+        if (currentRunLeadsFound >= targetLeads) {
           clearInterval(interval)
           await setJobStatus("completed")
           setAllValidatedLeads(actualLeads)
-          await updateJobProgress(actualLeadsFound, undefined, `Instagram cycle completed. Found ${actualLeadsFound} leads.`)
+          await updateJobProgress(currentRunLeadsFound, undefined, `Instagram cycle completed. Found ${currentRunLeadsFound} leads.`)
         } else if (currentStep >= totalSteps) {
           // Also stop after max steps even if target not reached
           clearInterval(interval)
           await setJobStatus("completed")
           setAllValidatedLeads(actualLeads)
-          await updateJobProgress(actualLeadsFound, undefined, `Instagram cycle completed. Found ${actualLeadsFound} leads (target: ${targetLeads}).`)
+          await updateJobProgress(currentRunLeadsFound, undefined, `Instagram cycle completed. Found ${currentRunLeadsFound} leads (target: ${targetLeads}).`)
         }
       } catch (error) {
         consecutiveErrors++
@@ -157,7 +166,8 @@ export default function GenerateLeadsPage() {
           clearInterval(interval)
           await setJobStatus("completed") // Mark as completed even if errors occurred
           const finalLeads = await getAllValidatedLeads()
-          await updateJobProgress(finalLeads.length, undefined, "Instagram cycle completed. Check Supabase for results.")
+          setAllValidatedLeads(finalLeads)
+          await updateJobProgress(finalLeads.length - startingLeadCount, undefined, "Instagram cycle completed. Check Supabase for results.")
         }
         
         // Continue even if Supabase fetch fails
@@ -192,6 +202,8 @@ export default function GenerateLeadsPage() {
                 onClick={async () => {
                   clearJobState()
                   setJob(null)
+                  setCurrentRunLeads([])
+                  setStartingLeadCount(0)
                   // Refresh all validated leads from Supabase
                   const leads = await getAllValidatedLeads()
                   setAllValidatedLeads(leads)
@@ -209,22 +221,22 @@ export default function GenerateLeadsPage() {
         <div className="mb-4">
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-semibold">
-              {job.status === "running" ? `Validated leads found: ${job.leadsGenerated}/${job.totalLeadsTarget}` : "Starting..."}
+              {job.status === "running" ? `Validated leads found: ${currentRunLeads.length}/${job.totalLeadsTarget}` : "Starting..."}
             </span>
-            <span className="text-sm text-gray-600">{Math.round((job.leadsGenerated / job.totalLeadsTarget) * 100)}%</span>
+            <span className="text-sm text-gray-600">{Math.round((currentRunLeads.length / job.totalLeadsTarget) * 100)}%</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div
               className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${(job.leadsGenerated / job.totalLeadsTarget) * 100}%` }}
+              style={{ width: `${(currentRunLeads.length / job.totalLeadsTarget) * 100}%` }}
             />
           </div>
           <p className="text-xs text-gray-500 mt-1">{job.logs[job.logs.length - 1]}</p>
           
           {/* Real-time lead details table during run */}
-          {job.validatedLeads && job.validatedLeads.length > 0 && (
+          {currentRunLeads && currentRunLeads.length > 0 && (
             <div className="mt-4">
-              <p className="text-sm font-semibold mb-2">Validated Leads Found ({job.validatedLeads.length})</p>
+              <p className="text-sm font-semibold mb-2">Validated Leads Found ({currentRunLeads.length})</p>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -234,7 +246,7 @@ export default function GenerateLeadsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {job.validatedLeads.map((lead, index) => (
+                  {currentRunLeads.map((lead, index) => (
                     <TableRow key={index}>
                       <TableCell>{lead.username}</TableCell>
                       <TableCell>
@@ -264,18 +276,18 @@ export default function GenerateLeadsPage() {
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
                 <p className="text-sm text-gray-600">Validated Leads Found (This Run)</p>
-                <p className="text-2xl font-bold">{job.leadsGenerated}</p>
+                <p className="text-2xl font-bold">{currentRunLeads.length}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600">Total Cost (This Run)</p>
-                <p className="text-2xl font-bold">${(job.leadsGenerated * 0.50).toFixed(2)}</p>
+                <p className="text-2xl font-bold">${(currentRunLeads.length * 0.50).toFixed(2)}</p>
               </div>
             </div>
             
             {/* Lead Breakdown Table - Current Run Leads */}
-            {job.validatedLeads && job.validatedLeads.length > 0 && (
+            {currentRunLeads && currentRunLeads.length > 0 && (
               <div className="mb-4">
-                <p className="text-sm font-semibold mb-2">Validated Leads from This Run ({job.validatedLeads.length})</p>
+                <p className="text-sm font-semibold mb-2">Validated Leads from This Run ({currentRunLeads.length})</p>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -285,7 +297,7 @@ export default function GenerateLeadsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {job.validatedLeads.map((lead, index) => (
+                    {currentRunLeads.map((lead, index) => (
                       <TableRow key={index}>
                         <TableCell>{lead.username}</TableCell>
                         <TableCell>
@@ -308,6 +320,8 @@ export default function GenerateLeadsPage() {
               onClick={async () => {
                 clearJobState()
                 setJob(null)
+                setCurrentRunLeads([])
+                setStartingLeadCount(0)
                 // Refresh all validated leads from Supabase
                 const leads = await getAllValidatedLeads()
                 setAllValidatedLeads(leads)
