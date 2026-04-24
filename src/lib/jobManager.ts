@@ -4,12 +4,19 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const supabase = createClient(supabaseUrl, supabaseKey)
 
+export interface ValidatedLead {
+  username: string
+  whatsapp: string
+  country: string
+}
+
 export interface JobState {
   id: string
   status: "pending" | "running" | "completed" | "failed"
   progress: number
   totalLeadsTarget: number
   leadsGenerated: number
+  validatedLeads: ValidatedLead[]
   logs: string[]
   createdAt: string
   completedAt?: string
@@ -34,6 +41,7 @@ export async function getJobState(jobId?: string): Promise<JobState | null> {
         progress: data.progress,
         totalLeadsTarget: data.desired_leads,
         leadsGenerated: data.leads_generated,
+        validatedLeads: data.validated_leads || [],
         logs: data.logs || [],
         createdAt: data.created_at,
         completedAt: data.completed_at,
@@ -50,7 +58,7 @@ export async function getJobState(jobId?: string): Promise<JobState | null> {
 
 export function setJobState(job: JobState): void {
   if (typeof window === "undefined") return
-  localStorage.setItem(LOCAL_JOB_STORAGE_KEY, job.id)
+  localStorage.setItem(LOCAL_JOB_STORAGE_KEY, JSON.stringify(job))
 }
 
 export function clearJobState(): void {
@@ -66,6 +74,7 @@ export async function createJob(totalLeadsTarget: number): Promise<JobState> {
       status: "pending",
       progress: 0,
       leads_generated: 0,
+      validated_leads: [],
       logs: ["Job created"],
     })
     .select()
@@ -80,6 +89,7 @@ export async function createJob(totalLeadsTarget: number): Promise<JobState> {
       progress: 0,
       totalLeadsTarget,
       leadsGenerated: 0,
+      validatedLeads: [],
       logs: ["Job created"],
       createdAt: new Date().toISOString(),
     }
@@ -93,14 +103,20 @@ export async function createJob(totalLeadsTarget: number): Promise<JobState> {
     progress: data.progress,
     totalLeadsTarget: data.desired_leads,
     leadsGenerated: data.leads_generated,
+    validatedLeads: data.validated_leads || [],
     logs: data.logs || [],
     createdAt: data.created_at,
   }
 }
 
-export async function updateJobProgress(leadsGenerated: number, log?: string): Promise<void> {
+export async function updateJobProgress(leadsGenerated: number, validatedLead?: ValidatedLead, log?: string): Promise<void> {
   const localJob = await getJobState()
   if (!localJob) return
+
+  let updatedValidatedLeads = localJob.validatedLeads
+  if (validatedLead) {
+    updatedValidatedLeads = [...updatedValidatedLeads, validatedLead]
+  }
 
   // Update in Supabase
   const { error } = await supabase
@@ -108,6 +124,7 @@ export async function updateJobProgress(leadsGenerated: number, log?: string): P
     .update({
       leads_generated: leadsGenerated,
       progress: (leadsGenerated / localJob.totalLeadsTarget) * 100,
+      validated_leads: updatedValidatedLeads,
       logs: log ? [...localJob.logs, log] : localJob.logs,
     })
     .eq("id", localJob.id)

@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { isAuthenticated } from "@/lib/auth"
-import { getJobState, createJob, updateJobProgress, setJobStatus, clearJobState, type JobState } from "@/lib/jobManager"
+import { getJobState, createJob, updateJobProgress, setJobStatus, clearJobState, type JobState, type ValidatedLead } from "@/lib/jobManager"
 
 export default function GenerateLeadsPage() {
   const router = useRouter()
@@ -108,13 +109,14 @@ export default function GenerateLeadsPage() {
       
       await updateJobProgress(
         leadsGenerated,
+        undefined,
         `Running Instagram cycle... (${currentStep}/${totalSteps})`
       )
 
       if (currentStep >= totalSteps) {
         clearInterval(interval)
         await setJobStatus("completed")
-        await updateJobProgress(leadsGenerated, "Instagram cycle completed. Check Supabase for actual results.")
+        await updateJobProgress(leadsGenerated, undefined, "Instagram cycle completed. Check Supabase for actual results.")
       }
     }, 3000) // 3 seconds per step (Instagram cycle takes time)
   }
@@ -145,14 +147,8 @@ export default function GenerateLeadsPage() {
               <Button
                 onClick={() => {
                   clearJobState()
-                  // Retry logic here
+                  setJob(null)
                 }}
-              >
-                Retry
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => clearJobState()}
               >
                 Clear
               </Button>
@@ -166,14 +162,14 @@ export default function GenerateLeadsPage() {
         <div className="mb-4">
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-semibold">
-              {job.status === "running" ? `Generating leads... (${job.leadsGenerated}/${job.totalLeadsTarget})` : "Starting..."}
+              {job.status === "running" ? `Validated leads found: ${job.leadsGenerated}/${job.totalLeadsTarget}` : "Starting..."}
             </span>
-            <span className="text-sm text-gray-600">{Math.round(job.progress)}%</span>
+            <span className="text-sm text-gray-600">{Math.round((job.leadsGenerated / job.totalLeadsTarget) * 100)}%</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div
               className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${job.progress}%` }}
+              style={{ width: `${(job.leadsGenerated / job.totalLeadsTarget) * 100}%` }}
             />
           </div>
           <p className="text-xs text-gray-500 mt-1">{job.logs[job.logs.length - 1]}</p>
@@ -187,9 +183,9 @@ export default function GenerateLeadsPage() {
             <CardTitle className="text-green-800">Lead Generation Complete</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
-                <p className="text-sm text-gray-600">Leads Generated</p>
+                <p className="text-sm text-gray-600">Validated Leads Found</p>
                 <p className="text-2xl font-bold">{job.leadsGenerated}</p>
               </div>
               <div>
@@ -197,9 +193,40 @@ export default function GenerateLeadsPage() {
                 <p className="text-2xl font-bold">${(job.leadsGenerated * 0.50).toFixed(2)}</p>
               </div>
             </div>
+            
+            {/* Lead Breakdown Table */}
+            {job.validatedLeads && job.validatedLeads.length > 0 && (
+              <div className="mb-4">
+                <p className="text-sm font-semibold mb-2">Validated Leads Breakdown</p>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Username</TableHead>
+                      <TableHead>WhatsApp #</TableHead>
+                      <TableHead>Country</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {job.validatedLeads.map((lead, index) => (
+                      <TableRow key={index}>
+                        <TableCell>{lead.username}</TableCell>
+                        <TableCell>{lead.whatsapp}</TableCell>
+                        <TableCell>
+                          <Badge>{lead.country}</Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+            
             <Button
               className="mt-4"
-              onClick={() => clearJobState()}
+              onClick={() => {
+                clearJobState()
+                setJob(null)
+              }}
             >
               Clear
             </Button>
@@ -280,22 +307,63 @@ export default function GenerateLeadsPage() {
           <CardDescription>Breakdown of extracted leads</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="border rounded-lg p-4">
-              <p className="font-semibold mb-2">Terms Used</p>
-              <p className="text-sm text-gray-600">revendacelulares, fornecedorcelulares, atacadocelulares</p>
+          {/* Show breakdown table if job completed */}
+          {job?.status === "completed" && job.validatedLeads && job.validatedLeads.length > 0 ? (
+            <div className="mb-4">
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="border rounded-lg p-4">
+                  <p className="font-semibold mb-2">Total Validated</p>
+                  <p className="text-2xl font-bold">{job.leadsGenerated}</p>
+                </div>
+                <div className="border rounded-lg p-4">
+                  <p className="font-semibold mb-2">Total Cost</p>
+                  <p className="text-2xl font-bold">${(job.leadsGenerated * 0.50).toFixed(2)}</p>
+                </div>
+                <div className="border rounded-lg p-4">
+                  <p className="font-semibold mb-2">Timestamp</p>
+                  <p className="text-sm text-gray-600">{new Date(job.completedAt || job.createdAt).toLocaleString()}</p>
+                </div>
+              </div>
+              
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Username</TableHead>
+                    <TableHead>WhatsApp #</TableHead>
+                    <TableHead>Country</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {job.validatedLeads.map((lead, index) => (
+                    <TableRow key={index}>
+                      <TableCell>{lead.username}</TableCell>
+                      <TableCell>{lead.whatsapp}</TableCell>
+                      <TableCell>
+                        <Badge>{lead.country}</Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
-            <div className="border rounded-lg p-4">
-              <p className="font-semibold mb-2">WhatsApp Validated Brazil/Paraguay</p>
-              <p className="text-2xl font-bold">35</p>
-              <Badge className="mt-2">Shown</Badge>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="border rounded-lg p-4">
+                <p className="font-semibold mb-2">Terms Used</p>
+                <p className="text-sm text-gray-600">revendacelulares, fornecedorcelulares, atacadocelulares</p>
+              </div>
+              <div className="border rounded-lg p-4">
+                <p className="font-semibold mb-2">WhatsApp Validated Brazil/Paraguay</p>
+                <p className="text-2xl font-bold">35</p>
+                <Badge className="mt-2">Shown</Badge>
+              </div>
+              <div className="border rounded-lg p-4">
+                <p className="font-semibold mb-2">WhatsApp Not Validated</p>
+                <p className="text-2xl font-bold">33</p>
+                <Badge className="mt-2">Sent to Supabase</Badge>
+              </div>
             </div>
-            <div className="border rounded-lg p-4">
-              <p className="font-semibold mb-2">WhatsApp Not Validated</p>
-              <p className="text-2xl font-bold">33</p>
-              <Badge className="mt-2">Sent to Supabase</Badge>
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
 
