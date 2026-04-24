@@ -115,26 +115,26 @@ export default function GenerateLeadsPage() {
     const interval = setInterval(async () => {
       currentStep++
       
-      // Re-fetch job state to get actual validated leads from Supabase
-      const currentJob = await getJobState()
-      if (currentJob) {
-        // Calculate progress based on actual validated leads found
-        const actualLeadsFound = currentJob.validatedLeads?.length || 0
-        const progressPercent = (actualLeadsFound / targetLeads) * 100
-        
-        await updateJobProgress(
-          actualLeadsFound,
-          undefined,
-          `Running Instagram cycle... (${currentStep}/${totalSteps})`
-        )
-      }
+      // Fetch actual validated leads from Supabase in real-time
+      const actualLeads = await getAllValidatedLeads()
+      const actualLeadsFound = actualLeads.length
+      const progressPercent = Math.min(100, (actualLeadsFound / targetLeads) * 100)
+      
+      // Update UI state in real-time
+      setAllValidatedLeads(actualLeads)
+      
+      await updateJobProgress(
+        actualLeadsFound,
+        undefined,
+        `Running Instagram cycle... (${currentStep}/${totalSteps}) - ${actualLeadsFound} leads found`
+      )
 
       if (currentStep >= totalSteps) {
         clearInterval(interval)
         await setJobStatus("completed")
-        const finalJob = await getJobState()
-        const finalLeads = finalJob?.validatedLeads?.length || 0
-        await updateJobProgress(finalLeads, undefined, "Instagram cycle completed. Check Supabase for actual results.")
+        const finalLeads = await getAllValidatedLeads()
+        setAllValidatedLeads(finalLeads)
+        await updateJobProgress(finalLeads.length, undefined, "Instagram cycle completed.")
       }
     }, 3000) // 3 seconds per step (Instagram cycle takes time)
   }
