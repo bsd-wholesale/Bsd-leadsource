@@ -135,12 +135,12 @@ export default function GenerateLeadsPage() {
               <p className="text-sm text-gray-600">revendacelulares, fornecedorcelulares, atacadocelulares</p>
             </div>
             <div className="border rounded-lg p-4">
-              <p className="font-semibold mb-2">Validated Valid Leads</p>
+              <p className="font-semibold mb-2">WhatsApp Validated Brazil/Paraguay</p>
               <p className="text-2xl font-bold">35</p>
               <Badge className="mt-2">Shown</Badge>
             </div>
             <div className="border rounded-lg p-4">
-              <p className="font-semibold mb-2">Non-Validated Leads</p>
+              <p className="font-semibold mb-2">WhatsApp Not Validated</p>
               <p className="text-2xl font-bold">33</p>
               <Badge className="mt-2">Sent to Supabase</Badge>
             </div>
