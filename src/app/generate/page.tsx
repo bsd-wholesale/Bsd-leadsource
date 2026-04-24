@@ -129,17 +129,23 @@ export default function GenerateLeadsPage() {
         await updateJobProgress(
           actualLeadsFound,
           undefined,
-          `Running Instagram cycle via Apify... (${currentStep}/${totalSteps}) - ${actualLeadsFound} leads found`
+          `Running Instagram cycle via Apify... (${actualLeadsFound}/${targetLeads} leads found)`
         )
 
         consecutiveErrors = 0 // Reset error counter on success
 
-        if (currentStep >= totalSteps) {
+        // Stop when desired leads count is reached
+        if (actualLeadsFound >= targetLeads) {
           clearInterval(interval)
           await setJobStatus("completed")
-          const finalLeads = await getAllValidatedLeads()
-          setAllValidatedLeads(finalLeads)
-          await updateJobProgress(finalLeads.length, undefined, "Instagram cycle completed via Apify.")
+          setAllValidatedLeads(actualLeads)
+          await updateJobProgress(actualLeadsFound, undefined, `Instagram cycle completed. Found ${actualLeadsFound} leads.`)
+        } else if (currentStep >= totalSteps) {
+          // Also stop after max steps even if target not reached
+          clearInterval(interval)
+          await setJobStatus("completed")
+          setAllValidatedLeads(actualLeads)
+          await updateJobProgress(actualLeadsFound, undefined, `Instagram cycle completed. Found ${actualLeadsFound} leads (target: ${targetLeads}).`)
         }
       } catch (error) {
         consecutiveErrors++
@@ -150,7 +156,8 @@ export default function GenerateLeadsPage() {
           console.error("Too many errors fetching leads, stopping progress simulation")
           clearInterval(interval)
           await setJobStatus("completed") // Mark as completed even if errors occurred
-          await updateJobProgress(0, undefined, "Instagram cycle completed. Check Supabase for results.")
+          const finalLeads = await getAllValidatedLeads()
+          await updateJobProgress(finalLeads.length, undefined, "Instagram cycle completed. Check Supabase for results.")
         }
         
         // Continue even if Supabase fetch fails
